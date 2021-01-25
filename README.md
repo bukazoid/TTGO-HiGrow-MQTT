@@ -18,20 +18,17 @@ The meta data contains:
 ``` json    
 {  
     "mac":"C4:4F:33:7F:FF:F5",  
-    "ip":"192.168.0.190",       //ip, in case you do want to use DHCP 
-    "bootcount":637,            //number of cycles during this battery live.
+    "ip":"192.168.0.190",       
+    "bootcount":637,            
     "firmware":"1.0.3"          
 }
 ```
 
-
-
 ## Building 
 
-Use Visual Studio Code with the PlatformIO plugin. 
+Use [Visual Studio Code](code.visualstudio.com) with the PlatformIO plugin. 
 Connect with USB. 
 From the PlatformIO plugin choose : Build, Upload and/or Monitor
-
 
 ## Configuration options
 
@@ -40,6 +37,7 @@ In the file `include\user-variables.h`, you can specify:
 - a list of ssid's and their passwords
 - static ip => (recommended => less time, less power)
 - mqtt server settings
+- duration of the deep sleep (frequentie of updates)
 
 ## DHT
 
@@ -51,6 +49,7 @@ Most code is commented.
 This code was based on the work of 
 
 https://github.com/Xinyuan-LilyGO/TTGO-HiGrow
+
 https://github.com/pesor/TTGO-T-HIGrow
 
 

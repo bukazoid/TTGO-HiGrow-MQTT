@@ -280,7 +280,6 @@ void setup()
     SPLN(pressure);
   };
 
-  // Create JSON file
   SPLN(F("Publishing results.."));
 
 
