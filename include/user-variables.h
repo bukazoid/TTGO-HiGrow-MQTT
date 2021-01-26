@@ -8,20 +8,30 @@
 #define uS_TO_S_FACTOR 1000000ULL //Conversion factor for micro seconds to seconds
 #define TIME_TO_SLEEP  3600       //Time ESP32 will go to sleep (in seconds) 
 
+
+//If you define PERTOPIC, the firmware will give each sensor value it's own topic..
+//MQTT Topics will look like
+//- plant/<mac>/temperature
+//- plant/<mac>/lumen
+//- plant/<mac>/etc..
+//If it's NOT defined , we will send all info into 1 topic as json.
+//- plant/<mac> 
+#define MQTT_PERTOPIC2
+
 //Select DHT type on the module - supported are DHT11, DHT12, DHT22
 //#define DHT_TYPE DHT11
 #define DHT_TYPE DHT12
 //#define DHT_TYPE DHT22
 
 // define your SSID's
-char const *ssidArr[] = { "Vosport", "Volera"};
-char const *passArr[] = { "pass1", "pass3" };
+char const *ssidArr[] = { "Volera", "Vosport"};
+char const *passArr[] = { "xxx", "xxx" };
 
 
 // uncomment if you want to use DHCP 
 #define STATICIP
 #ifdef STATICIP
-    IPAddress DeviceIP(192, 168, 0, 190);
+    IPAddress DeviceIP(192, 168, 0, 191);
     IPAddress GatewayIP(192, 168, 0, 1);
     IPAddress Subnet(255, 255, 255, 0);
 #endif

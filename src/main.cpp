@@ -27,7 +27,7 @@
 
 #endif /* DEBUG */
 
-const char* version = "1.0.3";
+const char* version = "1.0.4";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -227,11 +227,10 @@ void setup()
   //! Sensor power control pin , use deteced must set high
   pinMode(POWER_CTRL, OUTPUT);
   digitalWrite(POWER_CTRL, 1);
-  delay(50);
-
-  
   adc_power_on();
   
+  delay(10);
+
   if (!bmp.begin()) {
         bme_found = false;
     } else {
@@ -294,6 +293,7 @@ void setup()
   SPLN("Connected to the MQTT broker!");
   //meta push
 
+#ifdef MQTT_PERTOPIC
   sendfloat("/temperature", temp);
   sendfloat("/pressure", pressure);
   sendfloat("/lumen", lux);
@@ -307,7 +307,6 @@ void setup()
   sprintf(saltbuf, "%d", salt);
   sendbuffer("/salt",saltbuf);
 
-
   //Setup a meta data
 
   StaticJsonDocument<1024> doc;
@@ -316,10 +315,32 @@ void setup()
   root["ip"] = WiFi.localIP().toString();
   root["bootcount"] = bootCount; 
   root["firmware"] = version;
+  root["ticks"] = xthal_get_ccount; 
+  char jsonbuffer[1024];
+  serializeJson(doc, jsonbuffer);
+  sendbuffer("/meta", jsonbuffer);
+#else
+  StaticJsonDocument<1024> doc;
+  JsonObject root = doc.to<JsonObject>();
+
+  root["temp"]=  temp;
+  root["pres"] = pressure;
+  root["lux"] = lux;
+  root["batt"] = bat;
+  root["soil"] = soil;
+  root["salt"] = salt;
+  root["mac"] = WiFi.macAddress();
+  root["ip"] = WiFi.localIP().toString();
+  root["bootcount"] = bootCount; 
+  root["firmware"] = version;
+  root["ticks"] = xthal_get_ccount();
   char jsonbuffer[1024];
   serializeJson(doc, jsonbuffer);
 
-  sendbuffer("/meta", jsonbuffer);
+  sendbuffer("", jsonbuffer);
+
+#endif
+
   
   //Increment boot number and print it every reboot
   ++bootCount;
