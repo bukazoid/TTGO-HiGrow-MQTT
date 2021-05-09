@@ -6,8 +6,8 @@ Code is based on the TTGO HiGrow 19-8-22 v1.1 model with the BME280 sensor and w
 The mqtt topic is structured like: `plant/<mac-id>/<sensorkind>`. 
 
 Sensors are:
-- plant/id/temperature      *(float)*   
-- plant/id/pressure         *(float)*
+- plant/id/temperature      *(float)* - optional  
+- plant/id/pressure         *(float)* - optional
 - plant/id/lumen            *(float)*
 - plant/id/battery          *(float)*
 - plant/id/soil             *(int)*
@@ -48,9 +48,6 @@ Most code is commented.
 
 This code was based on the work of 
 
-https://github.com/Xinyuan-LilyGO/TTGO-HiGrow
-
-https://github.com/pesor/TTGO-T-HIGrow
-
+https://github.com/voslucas/TTGO-HiGrow-MQTT
 
 
