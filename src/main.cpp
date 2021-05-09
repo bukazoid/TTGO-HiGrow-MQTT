@@ -7,7 +7,7 @@
 #include <SD.h>
 #include <SPI.h>
 #include <PubSubClient.h>
-#include <ESP.h>
+//#include <ESP.h>
 #include <Adafruit_BME280.h>
 #include "driver/adc.h"
 #include <esp_wifi.h>
@@ -15,34 +15,36 @@
 
 #include "user-variables.h"
 
-
 #ifdef SERIALPRINT
-#define SP(x)     Serial.print(x)
-#define SPLN(x)   Serial.println(x)
+#define SP(x) Serial.print(x)
+#define SPLN(x) Serial.println(x)
 #else
 //#define SP(x)      do { if (0) Serial.print(x); } while (0)
 //#define SPLN(x)    do { if (0) Serial.println(x); } while (0)
-#define SP(x)      
-#define SPLN(x)    
+#define SP(x)
+#define SPLN(x)
 
 #endif /* DEBUG */
 
-const char* version = "1.0.4";
+const char *version = "1.0.5";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
 // Reboot counters
+//XXX: store ip same way to speed up wifi
 RTC_DATA_ATTR int bootCount = 0;
+int bmeFound = 1;
 
-// Collected data 
-float lux = 1.1;
-float temp = 1.1;
-float pressure = 1.1;
-uint16_t soil = 11;
-uint32_t salt = 11;
-float bat = 1.1;
-char macAddr[12] ; //= "AABBCCDDEEFF";
+// Collected data
+int INVALID_VALUE = -1111;// unreal for most cases
+float lux = INVALID_VALUE;
+float temp = INVALID_VALUE;
+float pressure = INVALID_VALUE;
+uint16_t soil = INVALID_VALUE;
+uint32_t salt = INVALID_VALUE;
+float bat = INVALID_VALUE;
+char macAddr[13]; //= "AABBCCDDEEFF"; and zero at the end
 
 const int led = 13;
 
@@ -55,7 +57,7 @@ const int led = 13;
 #define BOOT_PIN 0
 #define POWER_CTRL 4
 #define USER_BUTTON 35
-#define DS18B20_PIN         21                  //18b20 data pin
+#define DS18B20_PIN 21 //18b20 data pin
 
 BH1750 lightMeter(0x23); //0x23
 Adafruit_BME280 bmp;     //0x77
@@ -76,7 +78,7 @@ void goToDeepSleep()
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   btStop();
-  
+
   adc_power_off();
   esp_wifi_stop();
   esp_bt_controller_disable();
@@ -91,54 +93,59 @@ void goToDeepSleep()
   esp_deep_sleep_start();
 }
 
-void connectToNetwork() {
-
-  #ifdef STATICIP
-    WiFi.config(DeviceIP, GatewayIP, Subnet);
-  #endif
+int connectToNetwork()
+{
+  int counter = 0;
+#ifdef STATICIP
+  WiFi.config(DeviceIP, GatewayIP, Subnet);
+#endif
   WiFi.mode(WIFI_STA);
-  
+
   //WiFi.begin(ssid, password);
-  
+
   bool breakLoop = false;
-  int ssidCount = sizeof(ssidArr)/sizeof(ssidArr[0]);
+  int ssidCount = sizeof(ssidArr) / sizeof(ssidArr[0]);
   SP("Number of registerd SSID: ");
   SPLN(ssidCount);
-  
-  for (int i = 0; i < ssidCount; i++) {
+
+  for (int i = 0; i < ssidCount; i++)
+  {
     //ssid = ssidArr2[i];
     //password = passArr[i].c_str();
     SP("SSID name: ");
-    SPLN(ssidArr2[i]);
+    SPLN(ssidArr[i]);
 
-    while ( WiFi.status() !=  WL_CONNECTED )
+    while (WiFi.status() != WL_CONNECTED)
     {
       // wifi down, reconnect here
       WiFi.begin(ssidArr[i], passArr[i]);
-      int counter = 0;
-      while (WiFi.status() != WL_CONNECTED )
+
+      while (WiFi.status() != WL_CONNECTED)
       {
-        delay( 100 );
+        delay(100);
         SP(".");
         counter++;
-        if (counter >= 60)  // just keep terminal from scrolling sideways
+        if (counter >= WIFI_CONNECT_TIMEOUT_MS/100) // just keep terminal from scrolling sideways
         {
           breakLoop = true;
           break;
         }
       }
-      if (breakLoop) {
+      if (breakLoop)
+      {
         breakLoop = false;
         break;
       }
     }
   }
 
-  if (WiFi.status() !=  WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED)
+  {
     goToDeepSleep();
   }
-}
 
+  return counter;
+}
 
 // READ SALT
 uint32_t readSalt()
@@ -147,74 +154,90 @@ uint32_t readSalt()
   uint32_t humi = 0;
   uint16_t array[120];
 
-  for (int i = 0; i < samples; i++) {
+  for (int i = 0; i < samples; i++)
+  {
     array[i] = analogRead(SALT_PIN);
     delay(2);
   }
   std::sort(array, array + samples);
-  for (int i = 0; i < samples; i++) {
-    if (i == 0 || i == samples - 1)continue;
+  for (int i = 0; i < samples; i++)
+  {
+    if (i == 0 || i == samples - 1)
+      continue;
     humi += array[i];
   }
   humi /= samples - 2;
   return humi;
 }
 
-
 // *** READ SOIL
 uint16_t readSoil()
 {
   uint16_t soil = analogRead(SOIL_PIN);
-  return soil; 
+  return soil;
 }
 
-// *** READ BATTERY 
+// *** READ BATTERY
 float readBattery()
 {
-    int vref = 1100;
-    uint16_t volt = analogRead(BAT_ADC);
-    float battery_voltage = ((float)volt / 4095.0) * 2.0 * 3.3 * (vref);
-    return battery_voltage;
+  int vref = 1100;
+  uint16_t volt = analogRead(BAT_ADC);
+  float battery_voltage = ((float)volt / 4095.0) * 2.0 * 3.3 * (vref);
+  return battery_voltage;
 }
 
 // *** SEND FLOAT TO MQTT
-// Dest : the location 
+// Dest : the location
 void sendfloat(const char *dest, float value)
 {
   char topic[100];
   char stringvalue[40];
-  
-  // convert the float value to string
-  sprintf(stringvalue, "%f", value);  
-  // send to plant/<macaddres>/<dest> 
-  strcpy(topic, "plant/"); strcat(topic, macAddr); strcat(topic, dest);
 
-  if (!mqttClient.publish(topic ,stringvalue, true)) { goToDeepSleep(); }
+  // convert the float value to string
+  sprintf(stringvalue, "%f", value);
+  // send to plant/<macaddres>/<dest>
+  strcpy(topic, "plant/");
+  //strcpy(topic, "tele/");
+  strcat(topic, macAddr);
+  strcat(topic, dest);
+
+  if (!mqttClient.publish(topic, stringvalue, true))
+  {
+    goToDeepSleep();
+  }
 }
 
 void sendbuffer(const char *dest, char *buffer)
 {
   char topic[100];
-  strcpy(topic, "plant/"); strcat(topic, macAddr); strcat(topic, dest);
-  // send to plant/<macaddres>/<dest> 
-  if (!mqttClient.publish(topic ,buffer, true)) { goToDeepSleep(); }
+  topic[0] = 0;
+  strcpy(topic, "plant/");
+  //strcpy(topic, "tele/");
+  strcat(topic, macAddr);
+  //strcat(topic, dest);
+  // send to plant/<macaddres>/<dest>
+  SPLN("TOPIC:");
+  SPLN(topic);
+  if (!mqttClient.publish(topic, buffer, true))
+  {
+    goToDeepSleep();
+  }
 }
-
 
 void setup()
 {
 
   Serial.begin(115200);
-  
+
   SPLN("Entered Setup...");
 
   //Start WiFi
-  connectToNetwork();
+  int wifiCount = connectToNetwork();
 
   SPLN("Connected to network");
   SPLN(WiFi.macAddress());
   SPLN(WiFi.localIP());
-  
+
   //Store mac address, we use this as part of the mqtt topic
   byte mac[6];
   WiFi.macAddress(mac);
@@ -223,43 +246,67 @@ void setup()
   //dht.begin()       // N/A in my version
 
   Wire.begin(I2C_SDA, I2C_SCL); // wire can not be initialized at beginng, the bus is busy
-  
+
   //! Sensor power control pin , use deteced must set high
   pinMode(POWER_CTRL, OUTPUT);
   digitalWrite(POWER_CTRL, 1);
   adc_power_on();
-  
+
   delay(10);
 
-  if (!bmp.begin()) {
-        bme_found = false;
-    } else {
-        bme_found = true;
-        bmp.setSampling(Adafruit_BME280::MODE_FORCED,
+  // sometimes it would be better to call wakeup https://forum.mysensors.org/topic/9051/sleep-mode-for-bmp280
+  // write8(BMP280_REGISTER_CONTROL, 0x3F);
+  // if (bootCount == 0)
+  // {
+  if (!bmp.begin())
+  {
+    bme_found = false;
+    bmeFound = 0;
+  }
+  else
+  {
+    SPLN("init BME");
+    bmeFound = 1;
+    bme_found = true;
+    bmp.setSampling(Adafruit_BME280::MODE_FORCED,
                     Adafruit_BME280::SAMPLING_X1, // temperature
                     Adafruit_BME280::SAMPLING_X1, // pressure
                     Adafruit_BME280::SAMPLING_X1, // humidity
-                    Adafruit_BME280::FILTER_OFF   );
-    }
-
+                    Adafruit_BME280::FILTER_OFF);
+  }
+  // }
+  // else if (bmeFound)
+  // {
+  //   bmp.wakeup();
+  // }
 
   lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE);
-  lightMeter.readLightLevel(); // 1st read seems to return 0 always 
+  lightMeter.readLightLevel(); // 1st read seems to return 0 always
   delay(10);
 
   // DHT not available on our boards.
   // float t12 = dht.readTemperature(); // Read temperature as Fahrenheit then dht.readTemperature(true)
   // float h12 = dht.readHumidity();
-  
-  soil = readSoil(); 
-  SP("soil "); 
+
+  soil = readSoil();
+  SP("soil ");
   SPLN(soil);
-  
+  int soil_min = 1500;
+  int soil_max = 3330; // if we accept +- couple percents
+
+  int diff = soil_max - soil_min;
+  int top = soil_max - soil;
+  if (top < 0)
+  {
+    top = 0;
+  }
+
+  int soilPercent = 100 * top / diff;
 
   salt = readSalt();
-  SP("salt "); 
+  SP("salt ");
   SPLN(salt);
-  
+
   bat = readBattery();
   SP("battery ");
   SPLN(bat);
@@ -273,18 +320,21 @@ void setup()
     temp = bmp.readTemperature();
     SP("temp ");
     SPLN(temp);
-    
+
     pressure = (bmp.readPressure() / 100.0F);
     SP("pressure ");
     SPLN(pressure);
+
+    //https://forum.mysensors.org/topic/9051/sleep-mode-for-bmp280
+    bmp.sleep();
   };
 
   SPLN(F("Publishing results.."));
 
-
   //Connect MQTT client
   mqttClient.setServer(broker, 1883);
-  if (!mqttClient.connect(broker, mqttuser, mqttpass)) {
+  if (!mqttClient.connect(broker, mqttuser, mqttpass))
+  {
     SP("MQTT connection failed! Error code = ");
     SPLN(mqttClient.state());
     goToDeepSleep();
@@ -297,15 +347,15 @@ void setup()
   sendfloat("/temperature", temp);
   sendfloat("/pressure", pressure);
   sendfloat("/lumen", lux);
-  sendfloat("/battery",bat);
+  sendfloat("/battery", bat);
 
   char soilbuf[10];
   sprintf(soilbuf, "%d", soil);
-  sendbuffer("/soil",soilbuf);
+  sendbuffer("/soil", soilbuf);
 
   char saltbuf[10];
   sprintf(saltbuf, "%d", salt);
-  sendbuffer("/salt",saltbuf);
+  sendbuffer("/salt", saltbuf);
 
   //Setup a meta data
 
@@ -313,35 +363,38 @@ void setup()
   JsonObject root = doc.to<JsonObject>();
   root["mac"] = WiFi.macAddress();
   root["ip"] = WiFi.localIP().toString();
-  root["bootcount"] = bootCount; 
+  root["bootcount"] = bootCount;
   root["firmware"] = version;
-  root["ticks"] = xthal_get_ccount; 
+  root["ticks"] = xthal_get_ccount;
   char jsonbuffer[1024];
   serializeJson(doc, jsonbuffer);
   sendbuffer("/meta", jsonbuffer);
 #else
   StaticJsonDocument<1024> doc;
   JsonObject root = doc.to<JsonObject>();
-
-  root["temp"]=  temp;
-  root["pres"] = pressure;
+  if (bme_found == 1)
+  {
+    root["temperature"] = temp;
+    root["pressure"] = pressure;
+  }
   root["lux"] = lux;
   root["batt"] = bat;
   root["soil"] = soil;
+  root["soilPercent"] = soilPercent;
   root["salt"] = salt;
   root["mac"] = WiFi.macAddress();
   root["ip"] = WiFi.localIP().toString();
-  root["bootcount"] = bootCount; 
+  root["bootcount"] = bootCount;
   root["firmware"] = version;
   root["ticks"] = xthal_get_ccount();
+  root["worktime"] = millis();
+  root["wifiCount"] = wifiCount;
   char jsonbuffer[1024];
   serializeJson(doc, jsonbuffer);
 
   sendbuffer("", jsonbuffer);
-
 #endif
-
-  
+  SPLN("buffer sent");
   //Increment boot number and print it every reboot
   ++bootCount;
 
@@ -352,5 +405,4 @@ void setup()
 
 void loop()
 {
-
 }

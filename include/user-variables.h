@@ -6,8 +6,7 @@
 //#define SERIALPRINT
 
 #define uS_TO_S_FACTOR 1000000ULL //Conversion factor for micro seconds to seconds
-#define TIME_TO_SLEEP  3600       //Time ESP32 will go to sleep (in seconds) 
-
+#define TIME_TO_SLEEP 3600        //Time ESP32 will go to sleep (in seconds)
 
 //If you define PERTOPIC, the firmware will give each sensor value it's own topic..
 //MQTT Topics will look like
@@ -15,8 +14,8 @@
 //- plant/<mac>/lumen
 //- plant/<mac>/etc..
 //If it's NOT defined , we will send all info into 1 topic as json.
-//- plant/<mac> 
-#define MQTT_PERTOPIC2
+//- plant/<mac>
+//#define MQTT_PERTOPIC
 
 //Select DHT type on the module - supported are DHT11, DHT12, DHT22
 //#define DHT_TYPE DHT11
@@ -24,24 +23,25 @@
 //#define DHT_TYPE DHT22
 
 // define your SSID's
-char const *ssidArr[] = { "Volera", "Vosport"};
-char const *passArr[] = { "xxx", "xxx" };
+char const *ssidArr[] = {"bukazoid"};
+char const *passArr[] = {"password"};
 
-
-// uncomment if you want to use DHCP 
-#define STATICIP
+// uncomment if you want to use DHCP
+//#define STATICIP
 #ifdef STATICIP
-    IPAddress DeviceIP(192, 168, 0, 191);
-    IPAddress GatewayIP(192, 168, 0, 1);
-    IPAddress Subnet(255, 255, 255, 0);
+IPAddress DeviceIP(192, 168, 0, 191);
+IPAddress GatewayIP(192, 168, 0, 1);
+IPAddress Subnet(255, 255, 255, 0);
 #endif
 
 //ADVISE -> USE DIRECT IP ADDRESS OF BROKER, NOT A DNS NAME.
-const char broker[] = "192.168.0.251";
-int        port     = 1883;
-const char mqttuser[] = ""; //add eventual mqtt username
-const char mqttpass[] = ""; //add eventual mqtt password
+const char broker[] = "192.168.112.71";
+int port = 1883;
+const char mqttuser[] = "username"; //add eventual mqtt username
+const char mqttpass[] = "password"; //add eventual mqtt password
 
+
+const int WIFI_CONNECT_TIMEOUT_MS = 2500;// never seen more then 2100, if happends some value will be lost, so be it
 // *******************************************************************************************************************************
 // END userdefined data
 // *******************************************************************************************************************************
