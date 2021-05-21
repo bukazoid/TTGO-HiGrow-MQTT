@@ -18,13 +18,16 @@
 //#define MQTT_PERTOPIC
 
 //Select DHT type on the module - supported are DHT11, DHT12, DHT22
-//#define DHT_TYPE DHT11
-#define DHT_TYPE DHT12
+#define DHT_TYPE DHT11
+//#define DHT_TYPE DHT12
 //#define DHT_TYPE DHT22
+
+#define DHT_FOUND
+// Set to true if you have a DHT sensor on the board, and false if not
 
 // define your SSID's
 char const *ssidArr[] = {"bukazoid"};
-char const *passArr[] = {"password"};
+char const *passArr[] = {"memento_17"};
 
 // uncomment if you want to use DHCP
 //#define STATICIP
@@ -37,11 +40,11 @@ IPAddress Subnet(255, 255, 255, 0);
 //ADVISE -> USE DIRECT IP ADDRESS OF BROKER, NOT A DNS NAME.
 const char broker[] = "192.168.112.71";
 int port = 1883;
-const char mqttuser[] = "username"; //add eventual mqtt username
-const char mqttpass[] = "password"; //add eventual mqtt password
+const char mqttuser[] = "frozen"; //add eventual mqtt username
+const char mqttpass[] = "buka83"; //add eventual mqtt password
 
 
-const int WIFI_CONNECT_TIMEOUT_MS = 2500;// never seen more then 2100, if happends some value will be lost, so be it
+const int WIFI_CONNECT_TIMEOUT_MS = 2500;// to not drain all battery on single login. Never seen more then 2100, if happends some value will be lost, so be it
 // *******************************************************************************************************************************
 // END userdefined data
 // *******************************************************************************************************************************

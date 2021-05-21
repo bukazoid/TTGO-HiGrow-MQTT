@@ -26,7 +26,7 @@
 
 #endif /* DEBUG */
 
-const char *version = "1.0.5";
+const char *version = "1.0.6";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -37,10 +37,11 @@ RTC_DATA_ATTR int bootCount = 0;
 int bmeFound = 1;
 
 // Collected data
-int INVALID_VALUE = -1111;// unreal for most cases
+int INVALID_VALUE = -1111; // unreal for most cases
 float lux = INVALID_VALUE;
 float temp = INVALID_VALUE;
 float pressure = INVALID_VALUE;
+float humidity = INVALID_VALUE;
 uint16_t soil = INVALID_VALUE;
 uint32_t salt = INVALID_VALUE;
 float bat = INVALID_VALUE;
@@ -62,7 +63,9 @@ const int led = 13;
 BH1750 lightMeter(0x23); //0x23
 Adafruit_BME280 bmp;     //0x77
 
-//DHT dht(DHT_PIN, DHT_TYPE);           // NOT APPLICABLE ON MY DEVICE
+#ifdef DHT_FOUND
+DHT dht(DHT_PIN, DHT_TYPE); // NOT APPLICABLE ON MY DEVICE
+#endif
 
 bool bme_found = false;
 
@@ -125,7 +128,7 @@ int connectToNetwork()
         delay(100);
         SP(".");
         counter++;
-        if (counter >= WIFI_CONNECT_TIMEOUT_MS/100) // just keep terminal from scrolling sideways
+        if (counter >= WIFI_CONNECT_TIMEOUT_MS / 100) // just keep terminal from scrolling sideways
         {
           breakLoop = true;
           break;
@@ -243,7 +246,9 @@ void setup()
   WiFi.macAddress(mac);
   sprintf(macAddr, "%2X%2X%2X%2X%2X%2X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-  //dht.begin()       // N/A in my version
+#ifdef DHT_FOUND
+  dht.begin(); // N/A in my version
+#endif
 
   Wire.begin(I2C_SDA, I2C_SCL); // wire can not be initialized at beginng, the bus is busy
 
@@ -274,19 +279,18 @@ void setup()
                     Adafruit_BME280::SAMPLING_X1, // humidity
                     Adafruit_BME280::FILTER_OFF);
   }
-  // }
-  // else if (bmeFound)
-  // {
-  //   bmp.wakeup();
-  // }
 
   lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE);
   lightMeter.readLightLevel(); // 1st read seems to return 0 always
   delay(10);
 
   // DHT not available on our boards.
-  // float t12 = dht.readTemperature(); // Read temperature as Fahrenheit then dht.readTemperature(true)
-  // float h12 = dht.readHumidity();
+#ifdef DHT_FOUND
+  delay(2000);
+  temp = dht.readTemperature(); // Read temperature as Fahrenheit then dht.readTemperature(true)
+  delay(100);
+  humidity = dht.readHumidity();
+#endif
 
   soil = readSoil();
   SP("soil ");
@@ -322,11 +326,16 @@ void setup()
     SPLN(temp);
 
     pressure = (bmp.readPressure() / 100.0F);
+    pressure *= 0.75; // to get it in mmHg
     SP("pressure ");
     SPLN(pressure);
 
+    humidity = bmp.readHumidity();
+    SP("humidity ");
+    SPLN(pressure);
+
     //https://forum.mysensors.org/topic/9051/sleep-mode-for-bmp280
-    bmp.sleep();
+    //bmp.sleep();
   };
 
   SPLN(F("Publishing results.."));
@@ -374,7 +383,6 @@ void setup()
   JsonObject root = doc.to<JsonObject>();
   if (bme_found == 1)
   {
-    root["temperature"] = temp;
     root["pressure"] = pressure;
   }
   root["lux"] = lux;
@@ -389,6 +397,16 @@ void setup()
   root["ticks"] = xthal_get_ccount();
   root["worktime"] = millis();
   root["wifiCount"] = wifiCount;
+  if (!isnan(temp))
+  {
+    root["temperature"] = temp;
+  }
+  if (!isnan(humidity))
+  {
+    root["humidity"] = humidity;
+  }
+  root["bme"] = bme_found;
+
   char jsonbuffer[1024];
   serializeJson(doc, jsonbuffer);
 
